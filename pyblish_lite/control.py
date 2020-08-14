@@ -8,6 +8,7 @@ an active window manager; such as via Travis-CI.
 
 """
 
+import copy
 import traceback
 
 from .vendor.Qt import QtCore
@@ -37,11 +38,13 @@ class Controller(QtCore.QObject):
     # Emitted when processing has finished
     was_finished = QtCore.Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, context=None, plugins=None, targets=None):
         super(Controller, self).__init__(parent)
 
+        self._original_context = context
         self.context = list()
-        self.plugins = list()
+        self.plugins = plugins
+        self.targets = targets
 
         # Data internal to the GUI itself
         self.is_running = False
@@ -60,8 +63,11 @@ class Controller(QtCore.QObject):
 
     def reset(self):
         """Discover plug-ins and run collection"""
-        self.context = pyblish.api.Context()
-        self.plugins = pyblish.api.discover()
+        if self._original_context is None:
+            self.context = pyblish.api.Context()
+        else:
+            self.context = copy.copy(self._original_context)
+        self.plugins = self.plugins or pyblish.api.discover()
 
         self.was_discovered.emit()
 
@@ -108,8 +114,9 @@ class Controller(QtCore.QObject):
     def _load(self):
         """Initiate new generator and load first pair"""
         self.is_running = True
-        self.pair_generator = self._iterator(self.plugins,
-                                             self.context)
+        self.pair_generator = self._iterator(
+            self.plugins, self.context, self.targets,
+        )
         self.current_pair = next(self.pair_generator, (None, None))
         self.current_error = None
         self.is_running = False
@@ -223,7 +230,7 @@ class Controller(QtCore.QObject):
         self.is_running = True
         util.defer(10, on_next)
 
-    def _iterator(self, plugins, context):
+    def _iterator(self, plugins, context, targets):
         """Yield next plug-in and instance to process.
 
         Arguments:
@@ -234,7 +241,8 @@ class Controller(QtCore.QObject):
 
         test = pyblish.logic.registered_test()
 
-        for plug, instance in pyblish.logic.Iterator(plugins, context):
+        iterator = pyblish.logic.Iterator(plugins, context, targets=targets)
+        for plug, instance in iterator:
             if not plug.active:
                 continue
 

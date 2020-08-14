@@ -57,7 +57,7 @@ def on_destroyed():
     self._window = None
 
 
-def show(parent=None):
+def show(parent=None, context=None, plugins=None, targets=None):
     with open(util.get_asset("app.css")) as f:
         css = f.read()
 
@@ -71,7 +71,7 @@ def show(parent=None):
         install_fonts()
         install_translator(app)
 
-        ctrl = control.Controller()
+        ctrl = control.Controller(parent, context, plugins, targets)
 
         if self._window is None:
             self._window = window.Window(ctrl, parent)
